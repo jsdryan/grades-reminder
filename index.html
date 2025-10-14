@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成績輸入進度查詢系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            box-sizing: border-box;
+        }
+        
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-full font-sans">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- 標題區域 -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">📊 成績輸入進度查詢系統</h1>
+
+            <div class="flex items-center justify-center mt-4 text-sm text-gray-500">
+                <div class="loading-spinner mr-2" id="loadingSpinner"></div>
+                <span>截止日期：2025/10/22</span>
+            </div>
+        </div>
+
+        <!-- 統計卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <div class="text-3xl font-bold text-blue-600" id="totalCount">0</div>
+                <div class="text-gray-600 mt-1">總人數</div>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <div class="text-3xl font-bold text-green-600" id="completedCount">0</div>
+                <div class="text-gray-600 mt-1">已完成</div>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <div class="text-3xl font-bold text-orange-600" id="pendingCount">0</div>
+                <div class="text-gray-600 mt-1">未完成</div>
+            </div>
+        </div>
+
+        <!-- 進度條 -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-medium text-gray-700">完成進度</span>
+                <span class="text-sm font-medium text-gray-700" id="progressPercent">0%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div class="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full transition-all duration-500 ease-out" 
+                     style="width: 0%" id="progressBar"></div>
+            </div>
+        </div>
+
+        <!-- 主要內容區域 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- 未完成區域 -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="bg-gradient-to-r from-orange-500 to-red-500 text-white p-6">
+                    <h2 class="text-2xl font-bold flex items-center">
+                        ⏳ 未完成
+                        <span class="ml-3 bg-white bg-opacity-20 rounded-full px-3 py-1 text-sm" id="pendingBadge">0</span>
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div id="pendingList" class="space-y-3">
+                        <div class="text-center text-gray-500 py-8">載入中...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 已完成區域 -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="bg-gradient-to-r from-green-500 to-emerald-500 text-white p-6">
+                    <h2 class="text-2xl font-bold flex items-center">
+                        ✅ 已完成
+                        <span class="ml-3 bg-white bg-opacity-20 rounded-full px-3 py-1 text-sm" id="completedBadge">0</span>
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div id="completedList" class="space-y-3">
+                        <div class="text-center text-gray-500 py-8">載入中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 錯誤訊息 -->
+        <div id="errorMessage" class="hidden mt-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+            <strong>錯誤：</strong> <span id="errorText"></span>
+        </div>
+
+        <!-- 底部資訊 -->
+        <div class="text-center mt-8 text-sm text-gray-500">
+            <p>資料每 30 秒自動更新</p>
+            <p>最後更新：<span id="lastUpdate">載入中...</span></p>
+        </div>
+    </div>
+
+    <script>
+        // Google Sheets 設定
+        const SHEET_ID = '1Kb0eWpLFegmUfjY2y1KvKgkW4PkvylbWpXqDWWyh9sw';
+        const SHEET_NAME = 'gid=0'; // 第一個工作表
+        const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&${SHEET_NAME}`;
+        
+        let updateInterval;
+        
+        // 載入資料
+        async function loadData() {
+            try {
+                showLoading(true);
+                hideError();
+                
+                const response = await fetch(CSV_URL);
+                if (!response.ok) {
+                    throw new Error('無法連接到 Google 試算表');
+                }
+                
+                const csvText = await response.text();
+                const data = parseCSV(csvText);
+                
+                updateUI(data);
+                updateLastUpdateTime();
+                
+            } catch (error) {
+                console.error('載入資料錯誤:', error);
+                showError('無法載入資料，請檢查網路連線或試算表權限設定');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // 解析 CSV 資料
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            const data = [];
+            
+            // 跳過標題行，從第二行開始處理
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line) {
+                    const [name, score] = line.split(',').map(item => item.trim().replace(/"/g, ''));
+                    if (name) {
+                        data.push({
+                            name: name,
+                            score: score,
+                            completed: score && score !== ''
+                        });
+                    }
+                }
+            }
+            
+            return data;
+        }
+        
+        // 更新 UI
+        function updateUI(data) {
+            const completed = data.filter(item => item.completed);
+            const pending = data.filter(item => !item.completed);
+            
+            // 更新統計數字
+            document.getElementById('totalCount').textContent = data.length;
+            document.getElementById('completedCount').textContent = completed.length;
+            document.getElementById('pendingCount').textContent = pending.length;
+            document.getElementById('completedBadge').textContent = completed.length;
+            document.getElementById('pendingBadge').textContent = pending.length;
+            
+            // 更新進度條
+            const progressPercent = data.length > 0 ? Math.round((completed.length / data.length) * 100) : 0;
+            document.getElementById('progressPercent').textContent = `${progressPercent}%`;
+            document.getElementById('progressBar').style.width = `${progressPercent}%`;
+            
+            // 更新未完成列表
+            const pendingList = document.getElementById('pendingList');
+            if (pending.length === 0) {
+                pendingList.innerHTML = '<div class="text-center text-gray-500 py-8">🎉 太棒了！所有人都已完成</div>';
+            } else {
+                pendingList.innerHTML = pending.map(item => `
+                    <div class="flex items-center p-3 bg-orange-50 rounded-lg border-l-4 border-orange-400 fade-in">
+                        <div class="w-3 h-3 bg-orange-400 rounded-full mr-3"></div>
+                        <span class="font-medium text-gray-800">${item.name}</span>
+                    </div>
+                `).join('');
+            }
+            
+            // 更新已完成列表
+            const completedList = document.getElementById('completedList');
+            if (completed.length === 0) {
+                completedList.innerHTML = '<div class="text-center text-gray-500 py-8">尚無人完成</div>';
+            } else {
+                completedList.innerHTML = completed.map(item => `
+                    <div class="flex items-center p-3 bg-green-50 rounded-lg border-l-4 border-green-400 fade-in">
+                        <div class="w-3 h-3 bg-green-400 rounded-full mr-3"></div>
+                        <span class="font-medium text-gray-800">${item.name}</span>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        // 顯示/隱藏載入動畫
+        function showLoading(show) {
+            const spinner = document.getElementById('loadingSpinner');
+            spinner.style.display = show ? 'block' : 'none';
+        }
+        
+        // 顯示錯誤訊息
+        function showError(message) {
+            document.getElementById('errorText').textContent = message;
+            document.getElementById('errorMessage').classList.remove('hidden');
+        }
+        
+        // 隱藏錯誤訊息
+        function hideError() {
+            document.getElementById('errorMessage').classList.add('hidden');
+        }
+        
+        // 更新最後更新時間
+        function updateLastUpdateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('zh-TW');
+            document.getElementById('lastUpdate').textContent = timeString;
+        }
+        
+        // 初始化
+        function init() {
+            loadData();
+            
+            // 設定每 30 秒自動更新
+            updateInterval = setInterval(loadData, 30000);
+        }
+        
+        // 頁面載入完成後初始化
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // 頁面關閉前清理定時器
+        window.addEventListener('beforeunload', () => {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98b1f2e330388098',t:'MTc1OTg4NzgyMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
