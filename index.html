@@ -212,7 +212,7 @@
             const displayDate = deadline.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
             el.textContent = diffDays >= 0
                 ? `截止日期：${displayDate}（剩餘 ${diffDays} 日）`
-                : `截止日期：${displayDate}（已截止 ${Math.abs(diffDays)} 日）`;
+                : `截止日期：${displayDate}（已截止）`;
         }
 
         // ===== 載入資料 =====
