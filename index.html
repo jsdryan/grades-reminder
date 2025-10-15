@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,7 +10,7 @@
         body {
             box-sizing: border-box;
         }
-        
+
         .loading-spinner {
             border: 3px solid #f3f4f6;
             border-top: 3px solid #3b82f6;
@@ -18,22 +19,53 @@
             height: 20px;
             animation: spin 1s linear infinite;
         }
-        
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
-        
+
         .fade-in {
             animation: fadeIn 0.5s ease-in;
         }
-        
+
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes progress-flow {
+            0% {
+                background-position: 0% 0;
+            }
+
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        /* 讓綠色條有持續跑動的效果 + 寬度改變仍然平滑 */
+        #progressBar {
+            background: linear-gradient(90deg, #16a34a, #22c55e, #4ade80, #22c55e, #16a34a);
+            background-size: 200% 100%;
+            animation: progress-flow 1.8s linear infinite;
+            transition: width 0.6s ease-out;
         }
     </style>
 </head>
+
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-full font-sans">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
         <!-- 標題區域 -->
@@ -68,9 +100,8 @@
                 <span class="text-sm font-medium text-gray-700">完成進度</span>
                 <span class="text-sm font-medium text-gray-700" id="progressPercent">0%</span>
             </div>
-            <div class="w-full bg-gray-200 rounded-full h-3">
-                <div class="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full transition-all duration-500 ease-out" 
-                     style="width: 0%" id="progressBar"></div>
+            <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div id="progressBar" class="h-3 rounded-full" style="width: 0%"></div>
             </div>
         </div>
 
@@ -81,7 +112,8 @@
                 <div class="bg-gradient-to-r from-green-500 to-emerald-500 text-white p-6">
                     <h2 class="text-2xl font-bold flex items-center">
                         ✅ 已完成
-                        <span class="ml-3 bg-white bg-opacity-20 rounded-full px-3 py-1 text-sm" id="completedBadge">0</span>
+                        <span class="ml-3 bg-white bg-opacity-20 rounded-full px-3 py-1 text-sm"
+                            id="completedBadge">0</span>
                     </h2>
                 </div>
                 <div class="p-6">
@@ -96,7 +128,8 @@
                 <div class="bg-gradient-to-r from-orange-500 to-red-500 text-white p-6">
                     <h2 class="text-2xl font-bold flex items-center">
                         ⏳ 未完成
-                        <span class="ml-3 bg-white bg-opacity-20 rounded-full px-3 py-1 text-sm" id="pendingBadge">0</span>
+                        <span class="ml-3 bg-white bg-opacity-20 rounded-full px-3 py-1 text-sm"
+                            id="pendingBadge">0</span>
                     </h2>
                 </div>
                 <div class="p-6">
@@ -124,26 +157,26 @@
         const SHEET_ID = '1Kb0eWpLFegmUfjY2y1KvKgkW4PkvylbWpXqDWWyh9sw';
         const SHEET_NAME = 'gid=0'; // 第一個工作表
         const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&${SHEET_NAME}`;
-        
+
         let updateInterval;
-        
+
         // 載入資料
         async function loadData() {
             try {
                 showLoading(true);
                 hideError();
-                
+
                 const response = await fetch(CSV_URL);
                 if (!response.ok) {
                     throw new Error('無法連接到 Google 試算表');
                 }
-                
+
                 const csvText = await response.text();
                 const data = parseCSV(csvText);
-                
+
                 updateUI(data);
                 updateLastUpdateTime();
-                
+
             } catch (error) {
                 console.error('載入資料錯誤:', error);
                 showError('無法載入資料，請檢查網路連線或試算表權限設定');
@@ -151,12 +184,12 @@
                 showLoading(false);
             }
         }
-        
+
         // 解析 CSV 資料
         function parseCSV(csvText) {
             const lines = csvText.trim().split('\n');
             const data = [];
-            
+
             // 跳過標題行，從第二行開始處理
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -171,27 +204,27 @@
                     }
                 }
             }
-            
+
             return data;
         }
-        
+
         // 更新 UI
         function updateUI(data) {
             const completed = data.filter(item => item.completed);
             const pending = data.filter(item => !item.completed);
-            
+
             // 更新統計數字
             document.getElementById('totalCount').textContent = data.length;
             document.getElementById('completedCount').textContent = completed.length;
             document.getElementById('pendingCount').textContent = pending.length;
             document.getElementById('completedBadge').textContent = completed.length;
             document.getElementById('pendingBadge').textContent = pending.length;
-            
+
             // 更新進度條
             const progressPercent = data.length > 0 ? Math.round((completed.length / data.length) * 100) : 0;
             document.getElementById('progressPercent').textContent = `${progressPercent}%`;
             document.getElementById('progressBar').style.width = `${progressPercent}%`;
-            
+
             // 更新未完成列表
             const pendingList = document.getElementById('pendingList');
             if (pending.length === 0) {
@@ -204,7 +237,7 @@
                     </div>
                 `).join('');
             }
-            
+
             // 更新已完成列表
             const completedList = document.getElementById('completedList');
             if (completed.length === 0) {
@@ -218,42 +251,42 @@
                 `).join('');
             }
         }
-        
+
         // 顯示/隱藏載入動畫
         function showLoading(show) {
             const spinner = document.getElementById('loadingSpinner');
             spinner.style.display = show ? 'block' : 'none';
         }
-        
+
         // 顯示錯誤訊息
         function showError(message) {
             document.getElementById('errorText').textContent = message;
             document.getElementById('errorMessage').classList.remove('hidden');
         }
-        
+
         // 隱藏錯誤訊息
         function hideError() {
             document.getElementById('errorMessage').classList.add('hidden');
         }
-        
+
         // 更新最後更新時間
         function updateLastUpdateTime() {
             const now = new Date();
             const timeString = now.toLocaleTimeString('zh-TW');
             document.getElementById('lastUpdate').textContent = timeString;
         }
-        
+
         // 初始化
         function init() {
             loadData();
-            
+
             // 設定每 30 秒自動更新
             updateInterval = setInterval(loadData, 30000);
         }
-        
+
         // 頁面載入完成後初始化
         document.addEventListener('DOMContentLoaded', init);
-        
+
         // 頁面關閉前清理定時器
         window.addEventListener('beforeunload', () => {
             if (updateInterval) {
@@ -261,5 +294,7 @@
             }
         });
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98b1f2e330388098',t:'MTc1OTg4NzgyMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+    <script>(function () { function c() { var b = a.contentDocument || a.contentWindow.document; if (b) { var d = b.createElement('script'); d.innerHTML = "window.__CF$cv$params={r:'98b1f2e330388098',t:'MTc1OTg4NzgyMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);"; b.getElementsByTagName('head')[0].appendChild(d) } } if (document.body) { var a = document.createElement('iframe'); a.height = 1; a.width = 1; a.style.position = 'absolute'; a.style.top = 0; a.style.left = 0; a.style.border = 'none'; a.style.visibility = 'hidden'; document.body.appendChild(a); if ('loading' !== document.readyState) c(); else if (window.addEventListener) document.addEventListener('DOMContentLoaded', c); else { var e = document.onreadystatechange || function () { }; document.onreadystatechange = function (b) { e(b); 'loading' !== document.readyState && (document.onreadystatechange = e, c()) } } } })();</script>
+</body>
+
 </html>
